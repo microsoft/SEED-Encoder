@@ -1,33 +1,156 @@
-# Project
+This repository provides the fine-tuning stage on Marco ranking task for [SEED-Encoder](https://arxiv.org/abs/2102.09206) and is based on ANCE (https://github.com/microsoft/ANCE).
 
-> This repo has been populated by an initial template to help get you started. Please
-> make sure to update the content to build a great experience for community-building.
+# Requirements and Installation
 
-As the maintainer of this project, please make a few updates:
+* [PyTorch](http://pytorch.org/) version >= 1.4.0
+* Python version >= 3.6
 
-- Improving this README.MD file to provide a great experience
-- Updating SUPPORT.MD with content about this project's support experience
-- Understanding the security reporting process in SECURITY.MD
-- Remove this section from the README
 
-## Contributing
+# Fine-tuning for SEED-Encoder
+* We follow the ranking experiments in ANCE ([Approximate Nearest Neighbor Negative Contrastive Learning for Dense Text Retrieval](https://arxiv.org/pdf/2007.00808.pdf) ) as our downstream tasks.
 
-This project welcomes contributions and suggestions.  Most contributions require you to agree to a
-Contributor License Agreement (CLA) declaring that you have the right to, and actually do, grant us
-the rights to use your contribution. For details, visit https://cla.opensource.microsoft.com.
+## Requirements
 
-When you submit a pull request, a CLA bot will automatically determine whether you need to provide
-a CLA and decorate the PR appropriately (e.g., status check, comment). Simply follow the instructions
-provided by the bot. You will only need to do this once across all repos using our CLA.
+To install requirements, run the following commands:
 
-This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/).
-For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or
-contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
+```setup
+git clone https://github.com/microsoft/SEED-Encoder-On-Marco
+cd SEED-Encoder-On-Marco
+python setup.py install
+```
 
-## Trademarks
+## Data Download
+To download all the needed data, run:
+```
+bash commands/data_download.sh 
+```
 
-This project may contain trademarks or logos for projects, products, or services. Authorized use of Microsoft 
-trademarks or logos is subject to and must follow 
-[Microsoft's Trademark & Brand Guidelines](https://www.microsoft.com/en-us/legal/intellectualproperty/trademarks/usage/general).
-Use of Microsoft trademarks or logos in modified versions of this project must not cause confusion or imply Microsoft sponsorship.
-Any use of third-party trademarks or logos are subject to those third-party's policies.
+## Our Checkpoints
+[Pretrained SEED-Encoder with 3-layer decoder, attention span = 2 ](https://fastbertjp.blob.core.windows.net/release-model/SEED-Encoder-3-decoder-2-attn.pt)
+
+[Pretrained SEED-Encoder with 1-layer decoder, attention span = 8 ](https://fastbertjp.blob.core.windows.net/release-model/SEED-Encoder-1-decoder-8-attn.pt)
+
+[SEED-Encoder warmup checkpoint](https://fastbertjp.blob.core.windows.net/release-model/SEED-Encoder-warmup-90000.pt)
+
+[ANCE finetuned SEED-Encoder checkpoint on passage ranking task](https://fastbertjp.blob.core.windows.net/release-model/SEED-Encoder-pass-440000.pt)
+
+[ANCE finetuned SEED-Encoder checkpoint on document ranking task](https://fastbertjp.blob.core.windows.net/release-model/SEED-Encoder-doc-800000.pt)
+
+[bpe file used in our tokenizer](https://fastbertjp.blob.core.windows.net/release-model/vocab.txt)
+
+
+
+
+## Data Preprocessing
+The command to preprocess passage and document data is listed below:
+
+```
+python data/msmarco_data.py 
+--data_dir $raw_data_dir \
+--out_data_dir $preprocessed_data_dir \ 
+--model_type {use rdot_nll_fairseq_fast for SEED-Encoder ANCE FirstP} \ 
+--max_seq_length {use 512 for ANCE FirstP, 2048 for ANCE MaxP} \ 
+--data_type {use 1 for passage, 0 for document}
+```
+
+The data preprocessing command is included as the first step in the training command file commands/run_train.sh
+
+## Warmup for Training
+        model_file=SEED-Encoder-3-decoder-2-attn.pt
+        vocab=vocab.txt
+
+        python3 -m torch.distributed.launch --nproc_per_node=8 ../drivers/run_warmup.py \
+        --train_model_type rdot_nll_fairseq_fast --model_name_or_path $LOAD_DIR --model_file $model_file --task_name MSMarco --do_train \
+        --evaluate_during_training --data_dir $DATA_DIR \
+        --max_seq_length 128 --per_gpu_eval_batch_size=256  --per_gpu_train_batch_size=32 --learning_rate 2e-4 --logging_steps 100 --num_train_epochs 2.0 \
+        --output_dir $SAVE_DIR --warmup_steps 1000 --overwrite_output_dir --save_steps 10000 --gradient_accumulation_steps 1 --expected_train_size 35000000 \
+        --logging_steps_per_eval 100 --fp16 --optimizer lamb --log_dir $SAVE_DIR/log --bpe_vocab_file $vocab
+
+## ANCE Training (passage, you may first use the second command to generate the initial data)
+
+        gpu_no=4
+        seq_length=512
+        tokenizer_type="roberta-base-fast"
+        model_type=rdot_nll_fairseq_fast
+        base_data_dir={}
+        preprocessed_data_dir="${base_data_dir}ann_data_${tokenizer_type}_${seq_length}/"
+        job_name=$exp_name
+        pretrained_checkpoint_dir=SEED-Encoder-warmup-90000.pt
+        data_type=1
+        warmup_steps=5000
+        per_gpu_train_batch_size=16
+        gradient_accumulation_steps=1
+        learning_rate=1e-6
+        vocab=vocab.txt
+
+        blob_model_dir="${base_data_dir}${job_name}/"
+        blob_model_ann_data_dir="${blob_model_dir}ann_data/"
+
+        model_dir="./${job_name}/"
+        model_ann_data_dir="${model_dir}ann_data/"
+
+        
+        CUDA_VISIBLE_DEVICES=4,5,6,7 python -m torch.distributed.launch --nproc_per_node=$gpu_no ../drivers/run_ann_data_gen.py --training_dir $model_dir \
+        --init_model_dir $pretrained_checkpoint_dir --train_model_type $model_type --output_dir $model_ann_data_dir \
+        --cache_dir {} --data_dir $preprocessed_data_dir --max_seq_length $seq_length \
+        --per_gpu_eval_batch_size 64 --topk_training 200 --negative_sample 20 --bpe_vocab_file $vocab
+
+
+
+
+        CUDA_VISIBLE_DEVICES=0,1,2,3 python -m torch.distributed.launch --nproc_per_node=$gpu_no --master_addr 127.0.0.2 --master_port 35000 ../drivers/run_ann.py --train_model_type $model_type \
+        --model_name_or_path $pretrained_checkpoint_dir --task_name MSMarco --triplet --data_dir $preprocessed_data_dir \
+        --ann_dir $model_ann_data_dir --max_seq_length $seq_length --per_gpu_train_batch_size=$per_gpu_train_batch_size \
+        --gradient_accumulation_steps $gradient_accumulation_steps --learning_rate $learning_rate --output_dir $model_dir \
+        --warmup_steps $warmup_steps --logging_steps 100 --save_steps 10000 --optimizer lamb --single_warmup --bpe_vocab_file $vocab \
+        --blob_ann_dir $blob_model_ann_data_dir --blob_output_dir $blob_model_dir
+       
+## ANCE Training (document)
+
+        gpu_no=4
+        seq_length=512
+        tokenizer_type="roberta-base-fast-docdev2"
+        model_type=rdot_nll_fairseq_fast
+        base_data_dir={}
+        preprocessed_data_dir="${base_data_dir}ann_data_${tokenizer_type}_${seq_length}/"
+        job_name=$exp_name
+        pretrained_checkpoint_dir=SEED-Encoder-warmup-90000.pt
+        data_type=0
+        warmup_steps=3000
+        per_gpu_train_batch_size=4
+        gradient_accumulation_steps=4
+        learning_rate=5e-6
+        vocab=vocab.txt
+
+        blob_model_dir="${base_data_dir}${job_name}/"
+        blob_model_ann_data_dir="${blob_model_dir}ann_data/"
+
+        model_dir="./${job_name}/"
+        model_ann_data_dir="${model_dir}ann_data/"
+
+        CUDA_VISIBLE_DEVICES=4,5,6,7 python -m torch.distributed.launch --nproc_per_node=$gpu_no ../drivers/run_ann_data_gen.py --training_dir $model_dir \
+        --init_model_dir $pretrained_checkpoint_dir --train_model_type $model_type --output_dir $model_ann_data_dir \
+        --cache_dir {} --data_dir $preprocessed_data_dir --max_seq_length $seq_length \
+        --per_gpu_eval_batch_size 16 --topk_training 200 --negative_sample 20 --bpe_vocab_file $vocab
+
+
+
+        CUDA_VISIBLE_DEVICES=0,1,2,3 python -m torch.distributed.launch --nproc_per_node=$gpu_no --master_addr 127.0.0.2 --master_port 35000 ../drivers/run_ann.py --train_model_type $model_type \
+        --model_name_or_path $pretrained_checkpoint_dir --task_name MSMarco --triplet --data_dir $preprocessed_data_dir \
+        --ann_dir $model_ann_data_dir --max_seq_length $seq_length --per_gpu_train_batch_size=$per_gpu_train_batch_size \
+        --gradient_accumulation_steps $gradient_accumulation_steps --learning_rate $learning_rate --output_dir $model_dir \
+        --warmup_steps $warmup_steps --logging_steps 100 --save_steps 10000 --optimizer lamb --single_warmup --bpe_vocab_file $vocab \
+        --blob_ann_dir $blob_model_ann_data_dir --blob_output_dir $blob_model_dir --cache_dir {}
+
+## To reproduce our results you can use our checkpoints to generate the embeddings and then evaluate the results:
+        
+        python -m torch.distributed.launch --nproc_per_node=$gpu_no ../drivers/run_ann_data_gen.py --training_dir $model_dir \
+        --init_model_dir $pretrained_checkpoint_dir --train_model_type $model_type --output_dir $blob_model_ann_data_dir \
+        --cache_dir {} --data_dir $preprocessed_data_dir --max_seq_length $seq_length \
+        --per_gpu_eval_batch_size 64 --topk_training 200 --negative_sample 20 --end_output_num 0 --inference --bpe_vocab_file $vocab
+        
+        
+        python ../evaluation/eval.py
+
+
+
