@@ -14,8 +14,8 @@ This repository provides the fine-tuning stage on Marco ranking task for [SEED-E
 To install requirements, run the following commands:
 
 ```setup
-git clone https://github.com/microsoft/SEED-Encoder-On-Marco
-cd SEED-Encoder-On-Marco
+git clone https://github.com/microsoft/SEED-Encoder
+cd SEED-Encoder
 python setup.py install
 ```
 
