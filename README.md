@@ -45,12 +45,13 @@ bash commands/data_download.sh
 The command to preprocess passage and document data is listed below:
 
 ```
-python data/msmarco_data.py 
+python data/msmarco_data.py \
 --data_dir $raw_data_dir \
 --out_data_dir $preprocessed_data_dir \ 
---model_type {use rdot_nll_fairseq_fast for SEED-Encoder ANCE FirstP} \ 
+--train_model_type {use rdot_nll_fairseq_fast for SEED-Encoder ANCE FirstP} \ 
 --max_seq_length {use 512 for ANCE FirstP, 2048 for ANCE MaxP} \ 
 --data_type {use 1 for passage, 0 for document}
+--bpe_vocab_file $bpe_vocab_file
 ```
 
 The data preprocessing command is included as the first step in the training command file commands/run_train.sh
