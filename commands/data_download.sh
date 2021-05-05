@@ -41,6 +41,9 @@ gunzip msmarco-docdev-top100.gz
 wget https://msmarco.blob.core.windows.net/msmarcoranking/msmarco-docdev-queries.tsv.gz
 gunzip msmarco-docdev-queries.tsv.gz
 
+wget https://msmarco.blob.core.windows.net/msmarcoranking/msmarco-docdev-qrels.tsv.gz
+gunzip msmarco-docdev-qrels.tsv.gz
+
 
 # clone DPR repo and download NQ and TriviaQA datasets
 cd ../../../
