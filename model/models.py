@@ -21,7 +21,7 @@ try:
         TransformerSentenceEncoder,
     )
 except ImportError:
-    raise ImportError('Please install fairseq to the fairseq version model')
+    print('Please install fairseq to the fairseq version model if there is a need')
 
 
 
