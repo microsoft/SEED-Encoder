@@ -4,6 +4,7 @@ This repository provides the fine-tuning stage on Marco ranking task for [SEED-E
 
 * [PyTorch](http://pytorch.org/) version >= 1.4.0
 * Python version >= 3.6
+* Please install Apex with CUDA and C++ extensions ([apex github](https://github.com/NVIDIA/apex)).
 
 
 # Fine-tuning for SEED-Encoder
@@ -155,3 +156,34 @@ The data preprocessing command is included as the first step in the training com
 
 
 
+
+## Our huggingface version
+
+
+## Our Checkpoints
+[Pretrained SEED-Encoder with 3-layer decoder, attention span = 2 ](https://fastbertjp.blob.core.windows.net/release-model/SEED-Encoder-3-decoder-2-attn_huggingface.pt)
+
+[Pretrained SEED-Encoder with 1-layer decoder, attention span = 8 ](https://fastbertjp.blob.core.windows.net/release-model/SEED-Encoder-1-decoder-8-attn_huggingface.pt)
+
+[SEED-Encoder warmup checkpoint](https://fastbertjp.blob.core.windows.net/release-model/SEED-Encoder-warmup-90000_huggingface.pt)
+
+[ANCE finetuned SEED-Encoder checkpoint on passage ranking task](https://fastbertjp.blob.core.windows.net/release-model/SEED-Encoder-pass-440000_huggingface.pt)
+
+[ANCE finetuned SEED-Encoder checkpoint on document ranking task](https://fastbertjp.blob.core.windows.net/release-model/SEED-Encoder-doc-800000_huggingface.pt)
+
+
+
+## Load the huggingface checkpoints and run
+
+
+DATA_DIR=../../data/raw_data
+SAVE_DIR=../../temp/
+LOAD_DIR=../../data/raw_data/pretrained_models/SEED-Encoder-warmup-90000_huggingface.pt
+
+python3 -m torch.distributed.launch --nproc_per_node=8 ../drivers/run_warmup.py \
+--train_model_type seeddot_nll --model_name_or_path $LOAD_DIR --config_name ../model/SEED_Encoder/config_decoder_1_attn_8.json \
+--tokenizer_name ../model/SEED_Encoder/vocab.txt  --task_name MSMarco --do_train \
+--evaluate_during_training --data_dir $DATA_DIR \
+--max_seq_length 128 --per_gpu_eval_batch_size=512  --per_gpu_train_batch_size=2 --learning_rate 2e-4 --logging_steps 1 --num_train_epochs 2.0 \
+--output_dir $SAVE_DIR --warmup_steps 1000 --overwrite_output_dir --save_steps 1 --gradient_accumulation_steps 1 --expected_train_size 35000000 \
+--logging_steps_per_eval 1 --fp16 --optimizer lamb --log_dir $SAVE_DIR/log --do_lower_case

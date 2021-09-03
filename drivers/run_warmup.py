@@ -206,6 +206,7 @@ def train(args, model, tokenizer, f, train_fn):
             # model outputs are always tuple in transformers (see doc)
             loss = outputs[0]
 
+
             if args.n_gpu > 1:
                 loss = loss.mean()  # mean() to average on multi-gpu parallel training
             if args.gradient_accumulation_steps > 1:
