@@ -263,7 +263,7 @@ def PassagePreprocessingFn(args, line, tokenizer):
         elif 'fairseq' in args.train_model_type:
             full_text = url + " </s> " + title + " </s> " + p_text
         else:
-            full_text = url + " <sep> " + title + "<sep>" + p_text
+            full_text = url + " "+tokenizer.sep_token_id+" " + title + " "+tokenizer.sep_token_id+" " + p_text
         # keep only first 10000 characters, should be sufficient for any
         # experiment that uses less than 500 - 1k tokens
         full_text = full_text[:args.max_doc_character]
