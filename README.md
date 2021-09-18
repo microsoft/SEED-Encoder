@@ -1,3 +1,8 @@
+# Less is More: Pre-train a Strong Text Encoder for Dense Retrieval Using a Weak Decoder
+
+
+
+
 This repository provides the fine-tuning stage on Marco ranking task for [SEED-Encoder](https://arxiv.org/abs/2102.09206) and is based on ANCE (https://github.com/microsoft/ANCE).
 
 # Requirements and Installation
