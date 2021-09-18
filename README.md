@@ -1,5 +1,6 @@
 # Less is More: Pre-train a Strong Text Encoder for Dense Retrieval Using a Weak Decoder
 
+Shuqi Lu∗, Di He, Chenyan Xiong, Guolin Ke, Waleed Malik, Zhicheng Dou, Paul Bennett, Tie-Yan Liu, Arnold Overwijk
 
 
 
