@@ -15,6 +15,8 @@ from transformers import (
 import torch.nn.functional as F
 from data.process_fn import triple_process_fn, triple2dual_process_fn
 
+from torch import Tensor as T
+from typing import Tuple
 
 try:
     from fairseq.modules import (
@@ -407,13 +409,13 @@ class RobertaDot_CLF_ANN_NLL_MultiChunk_fairseq_fast(NLL_MultiChunk, RobertaDot_
         return complex_emb_k  # size [batchS, chunk_factor, embeddingS]
 
 
-class SEEDEncoderDot_NLL_LN(NLL, SEEDEncoderForMaskedLM):
+class SEEDEncoderDot_NLL_LN(NLL, SEEDEncoderForSequenceClassification):
     """None
     Compress embedding to 200d, then computes NLL loss.
     """
     def __init__(self, config, model_argobj=None):
         NLL.__init__(self, model_argobj)
-        SEEDEncoderForMaskedLM.__init__(self, config)
+        SEEDEncoderForSequenceClassification.__init__(self, config)
         self.embeddingHead = nn.Linear(config.encoder_embed_dim, 768)
         self.norm = nn.LayerNorm(768)
         self.apply(self._init_weights)
@@ -421,9 +423,9 @@ class SEEDEncoderDot_NLL_LN(NLL, SEEDEncoderForMaskedLM):
     def query_emb(self, input_ids, attention_mask=None):
         outputs1 = self.seed_encoder.encoder(input_ids)
 
-
         full_emb = self.masked_mean_or_first(outputs1, attention_mask)
         query1 = self.norm(self.embeddingHead(full_emb))
+
         return query1
 
     def body_emb(self, input_ids, attention_mask=None):
@@ -480,7 +482,123 @@ class BiEncoder(nn.Module):
         lsm = F.log_softmax(logit_matrix, dim=1)
         loss = -1.0*lsm[:,0]
         return (loss.mean(),)
+
+
+
+class RobertaEncoderFast(nn.Module):
+
+    def __init__(self,dropout: float = 0.1):
+        super(RobertaEncoderFast, self).__init__()
+        self.fairseq_roberta = TransformerSentenceEncoder(
+                padding_idx=1,
+                vocab_size=32769,
+                num_encoder_layers=12,
+                embedding_dim=768,
+                ffn_embedding_dim=3072,
+                num_attention_heads=12,
+                dropout=0.1,
+                attention_dropout=0.1,
+                activation_dropout=0.0,
+                layerdrop=0.0,
+                max_seq_len=512,
+                num_segments=0,
+                encoder_normalize_before=True,
+                apply_bert_init=True,
+                activation_fn="gelu",
+                q_noise=0.0,
+                qn_block_size=8,
+        )
+        # self.encode_proj = (
+        #     nn.Linear(config.hidden_size, project_dim) if project_dim != 0 else None
+        # )
+        # if dropout != 0:
+        #     self.fairseq_roberta.encoder.sentence_encoder=dropout
+        from fairseq.modules.transformer_sentence_encoder import init_bert_params
+        self.apply(init_bert_params)
+       # self.init_weights()
+
+    #@classmethod
+    def from_pretrained(self, model_path: str):
+        model_dict = self.state_dict()
+        save_model=torch.load(model_path, map_location=lambda storage, loc: storage)
+        pretrained_dict= {}
+        if 'model' in save_model.keys():
+            for name in save_model['model']:
+                if 'lm_head' not in name and 'encoder' in name and 'decode' not in name:
+                    pretrained_dict['fairseq_roberta'+name[24:]]=save_model['model'][name]
+            if not self.encode_proj:
+                assert len(model_dict)==len(pretrained_dict), (len(model_dict),len(pretrained_dict),model_dict.keys(),pretrained_dict.keys())
+        else:
+            print('load finetuned checkpoints...')
+            for name in save_model:
+                pretrained_dict[name[7:]]=save_model[name]
+            assert len(model_dict)==len(pretrained_dict)
+
+        print('load model.... ',len(model_dict),len(pretrained_dict))
+        print(pretrained_dict.keys())
         
+        model_dict.update(pretrained_dict)
+        self.load_state_dict(model_dict)
+
+
+    def forward(self, input_ids, attention_mask=None,representation_token_pos=0) -> Tuple[T, ...]:
+        roberta_out,_=self.fairseq_roberta(input_ids)
+        roberta_out=roberta_out[-1].transpose(0,1)
+
+        if isinstance(representation_token_pos, int):
+            cls_out = roberta_out[:, representation_token_pos, :]
+        else:  # treat as a tensor
+            bsz = roberta_out.size(0)
+            assert (
+                representation_token_pos.size(0) == bsz
+            ), "query bsz={} while representation_token_pos bsz={}".format(
+                bsz, representation_token_pos.size(0)
+            )
+            cls_out = torch.stack(
+                [
+                    roberta_out[i, representation_token_pos[i, 1], :]
+                    for i in range(bsz)
+                ]
+            )
+
+        return roberta_out, cls_out, None
+
+    def get_out_size(self):
+        if self.encode_proj:
+            return self.encode_proj.out_features
+        #return self.config.hidden_size
+        return 768
+
+class BiEncoderFast(nn.Module):
+    """ Bi-Encoder model component. Encapsulates query/question and context/passage encoders.
+    """
+    def __init__(self, args):
+        super(BiEncoderFast, self).__init__()
+        self.question_model = RobertaEncoderFast()
+        self.ctx_model = RobertaEncoderFast()
+        
+        # save_model=torch.load(args.model_path, map_location=lambda storage, loc: storage)
+        # self.load_state_dict(save_model)
+        
+    def query_emb(self, input_ids, attention_mask=None):
+        #print('input_ids: ',input_ids)
+        sequence_output, pooled_output, hidden_states = self.question_model(input_ids)
+        return pooled_output
+    def body_emb(self, input_ids, attention_mask=None):
+        sequence_output, pooled_output, hidden_states = self.ctx_model(input_ids)
+        return pooled_output
+    def forward(self, query_ids, attention_mask_q=None, input_ids_a = None, attention_mask_a = None, input_ids_b = None, attention_mask_b = None):
+        if input_ids_b is None:
+            q_embs = self.query_emb(query_ids, attention_mask_q)
+            a_embs = self.body_emb(input_ids_a, attention_mask_a)
+            return (q_embs, a_embs)
+        q_embs = self.query_emb(query_ids, attention_mask_q)
+        a_embs = self.body_emb(input_ids_a, attention_mask_a)
+        b_embs = self.body_emb(input_ids_b, attention_mask_b)
+        logit_matrix = torch.cat([(q_embs*a_embs).sum(-1).unsqueeze(1), (q_embs*b_embs).sum(-1).unsqueeze(1)], dim=1) #[B, 2]
+        lsm = F.log_softmax(logit_matrix, dim=1)
+        loss = -1.0*lsm[:,0]
+        return (loss.mean(),)   
 
 # --------------------------------------------------
 ALL_MODELS = sum(
@@ -523,6 +641,12 @@ configs = [
                 use_mean=False,
                 ),
 
+    MSMarcoConfig(name="dpr_fast",
+                model=BiEncoderFast,
+                # tokenizer_class=BertTokenizer,
+                # config_class=BertConfig,
+                use_mean=False,
+                ),
 
     MSMarcoConfig(name="rdot_nll_fairseq",
                 model=RobertaDot_NLL_LN_fairseq,

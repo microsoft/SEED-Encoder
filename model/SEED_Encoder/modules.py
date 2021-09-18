@@ -26,7 +26,7 @@ try:
 
 except ImportError:
     has_fused_layernorm = False
-from transformers.utils import logging
+#from transformers.utils import logging
 
 def LayerNorm(normalized_shape, eps=1e-5, elementwise_affine=True, export=False):
     if not export and torch.cuda.is_available() and has_fused_layernorm:
@@ -300,9 +300,10 @@ def PositionalEmbedding(
 
 
 
+import logging
+logger = logging.getLogger(__name__)
 
-
-logger = logging.get_logger(__name__)
+#logger = logging.get_logger(__name__)
 
 
 class FairseqDropout(nn.Module):
@@ -383,9 +384,9 @@ class FairseqIncrementalState(object):
         return incremental_state
 
 
-def with_incremental_state(cls):
-    cls.__bases__ = (FairseqIncrementalState,) + tuple(b for b in cls.__bases__ if b != FairseqIncrementalState)
-    return cls
+# def with_incremental_state(cls):
+#     cls.__bases__ = (FairseqIncrementalState,) + tuple(b for b in cls.__bases__ if b != FairseqIncrementalState)
+#     return cls
 
 
 
@@ -616,7 +617,7 @@ class SelfMultiheadAttention(nn.Module):
         return attn, attn_weights
 
 
-@with_incremental_state
+# @with_incremental_state
 class MultiheadAttention(nn.Module):
     """Multi-headed attention.
 

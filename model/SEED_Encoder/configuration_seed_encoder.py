@@ -1,8 +1,9 @@
 from transformers.configuration_utils import PretrainedConfig
-from transformers.utils import logging
+#from transformers.utils import logging
+#logger = logging.get_logger(__name__)
 
-
-logger = logging.get_logger(__name__)
+import logging
+logger = logging.getLogger(__name__)
 
 # DEBERTA_V2_PRETRAINED_CONFIG_ARCHIVE_MAP = {
 #     "microsoft/deberta-v2-xlarge": "https://huggingface.co/microsoft/deberta-v2-xlarge/resolve/main/config.json",
@@ -107,6 +108,7 @@ class SEEDEncoderConfig(PretrainedConfig):
         layernorm_embedding=True,
         tie_adaptive_weights=True,
         decoder_layers_to_keep=None,
+        initializer_range=0.02,
         **kwargs
     ):
         super().__init__(**kwargs)
@@ -165,6 +167,8 @@ class SEEDEncoderConfig(PretrainedConfig):
 
         self.max_source_positions=max_positions
         self.max_target_positions=max_positions
+
+        self.initializer_range = initializer_range
 
 
 

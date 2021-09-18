@@ -39,6 +39,10 @@ bash commands/data_download.sh
 
 [bpe file used in our tokenizer](https://fastbertjp.blob.core.windows.net/release-model/vocab.txt)
 
+[DPR finetuned SEED-Encoder checkpoint on NQ task](https://fastbertjp.blob.core.windows.net/release-model/dpr_biencoder.37)
+
+[ANCE finetuned SEED-Encoder checkpoint on NQ task](https://fastbertjp.blob.core.windows.net/release-model/ance-nq-checkpoint)
+
 
 
 
@@ -155,35 +159,54 @@ The data preprocessing command is included as the first step in the training com
         python ../evaluation/eval.py
 
 
+## NQ scripts
+
+    The running script is in commands/run_ann_data_gen_dpr.sh and commands/run_tran_dpr.sh
 
 
-## Our huggingface version
+
+## Results of SEED-Encoder
+
+|   MSMARCO Dev Passage Retrieval    | MRR@10  | Recall@1k |
+|------------------------------|---------------|--------------------- |
+| BM25 warmup checkpoint     |     0.329     |      0.953     |
+| ANCE Passage  checkpoint  |     0.334   |   0.961       |
+
+|   MSMARCO Document Retrieval    | MRR@10 (Dev)  |  MRR@10 (Eval) |
+|---------------- | -------------- | -------------- |
+|  ANCE Document (FirstP)  checkpoint   |     0.394       |    0.362     | 
 
 
-## Our Checkpoints
-[Pretrained SEED-Encoder with 3-layer decoder, attention span = 2 ](https://fastbertjp.blob.core.windows.net/release-model/SEED-Encoder-3-decoder-2-attn_huggingface.pt)
+| NQ Task      | Top-1  |  Top-5    | Top-20  |  Top-100 |  MRR@20    | P@20  |
+|---------------- | -------------- | -------------- |-------------- | -------------- | -------------- |-------------- |
+| DPR checkpoint    |     46.1       |        68.8     |    80.4     |   87.1      |   56.2    |    20.1   |
+| ANCE NQ checkpoint    |   52.5        |       73.1      |      83.1   |   88.7   |       61.5   |    22.5
 
-[Pretrained SEED-Encoder with 1-layer decoder, attention span = 8 ](https://fastbertjp.blob.core.windows.net/release-model/SEED-Encoder-1-decoder-8-attn_huggingface.pt)
 
-[SEED-Encoder warmup checkpoint](https://fastbertjp.blob.core.windows.net/release-model/SEED-Encoder-warmup-90000_huggingface.pt)
 
-[ANCE finetuned SEED-Encoder checkpoint on passage ranking task](https://fastbertjp.blob.core.windows.net/release-model/SEED-Encoder-pass-440000_huggingface.pt)
+## Our huggingface Checkpoints
+[Pretrained SEED-Encoder with 3-layer decoder, attention span = 2 ](https://fastbertjp.blob.core.windows.net/release-model/SEED-Encoder-3-decoder-layers.tar)
 
-[ANCE finetuned SEED-Encoder checkpoint on document ranking task](https://fastbertjp.blob.core.windows.net/release-model/SEED-Encoder-doc-800000_huggingface.pt)
+[Pretrained SEED-Encoder with 1-layer decoder, attention span = 8 ](https://fastbertjp.blob.core.windows.net/release-model/SEED-Encoder-1-decoder-layer.tar)
+
+[SEED-Encoder warmup checkpoint](https://fastbertjp.blob.core.windows.net/release-model/SEED-Encoder-warmup-90000.tar)
+
+[ANCE finetuned SEED-Encoder checkpoint on passage ranking task](https://fastbertjp.blob.core.windows.net/release-model/SEED-Encoder-pass-440000.tar)
+
+[ANCE finetuned SEED-Encoder checkpoint on document ranking task](https://fastbertjp.blob.core.windows.net/release-model/SEED-Encoder-doc-800000.tar)
 
 
 
 ## Load the huggingface checkpoints and run
 
 
-DATA_DIR=../../data/raw_data
-SAVE_DIR=../../temp/
-LOAD_DIR=../../data/raw_data/pretrained_models/SEED-Encoder-warmup-90000_huggingface.pt
+    DATA_DIR=../../data/raw_data
+    SAVE_DIR=../../temp/
+    LOAD_DIR=$your_dir/SEED-Encoder-warmup-90000/
 
-python3 -m torch.distributed.launch --nproc_per_node=8 ../drivers/run_warmup.py \
---train_model_type seeddot_nll --model_name_or_path $LOAD_DIR --config_name ../model/SEED_Encoder/config_decoder_1_attn_8.json \
---tokenizer_name ../model/SEED_Encoder/vocab.txt  --task_name MSMarco --do_train \
---evaluate_during_training --data_dir $DATA_DIR \
---max_seq_length 128 --per_gpu_eval_batch_size=512  --per_gpu_train_batch_size=2 --learning_rate 2e-4 --logging_steps 1 --num_train_epochs 2.0 \
---output_dir $SAVE_DIR --warmup_steps 1000 --overwrite_output_dir --save_steps 1 --gradient_accumulation_steps 1 --expected_train_size 35000000 \
---logging_steps_per_eval 1 --fp16 --optimizer lamb --log_dir $SAVE_DIR/log --do_lower_case
+    python3 -m torch.distributed.launch --nproc_per_node=8 ../drivers/run_warmup.py \
+    --train_model_type seeddot_nll --model_name_or_path $LOAD_DIR --task_name MSMarco --do_train \
+    --evaluate_during_training --data_dir $DATA_DIR \
+    --max_seq_length 128 --per_gpu_eval_batch_size=512  --per_gpu_train_batch_size=2 --learning_rate 2e-4 --logging_steps 1 --num_train_epochs 2.0 \
+    --output_dir $SAVE_DIR --warmup_steps 1000 --overwrite_output_dir --save_steps 1 --gradient_accumulation_steps 1 --expected_train_size 35000000 \
+    --logging_steps_per_eval 1 --fp16 --optimizer lamb --log_dir $SAVE_DIR/log --do_lower_case --fp16

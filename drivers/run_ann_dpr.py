@@ -54,9 +54,7 @@ from utils.dpr_utils import (
 )
 
 
-
-
-def train(args, model, tokenizer, query_cache, passage_cache):
+def train(args, model, query_cache, passage_cache):
     """ Train the model """
     logger.info("Training/evaluation parameters %s", args)
     tb_writer = None
@@ -102,7 +100,7 @@ def train(args, model, tokenizer, query_cache, passage_cache):
     model.train()
     set_seed(args)  # Added here for reproductibility
 
-    last_ann_no = -1
+    last_ann_no = -2
     train_dataloader = None
     train_dataloader_iter = None
     dev_ndcg = 0
@@ -120,22 +118,33 @@ def train(args, model, tokenizer, query_cache, passage_cache):
         logger.info("  Continuing training from checkpoint, will skip to saved global_step")
         logger.info("  Continuing training from global step %d", global_step)
 
+        if global_step%args.logging_steps!=0:
+            global_step=0
 
-        nq_dev_nll_loss, nq_correct_ratio = evaluate_dev(args, model, passage_cache)
-        dev_nll_loss_trivia, correct_ratio_trivia = evaluate_dev(args, model, passage_cache, "-trivia")
-        if is_first_worker():
-            tb_writer.add_scalar("dev_nll_loss/dev_nll_loss", nq_dev_nll_loss, global_step)
-            tb_writer.add_scalar("dev_nll_loss/correct_ratio", nq_correct_ratio, global_step)
-            tb_writer.add_scalar("dev_nll_loss/dev_nll_loss_trivia", dev_nll_loss_trivia, global_step)
-            tb_writer.add_scalar("dev_nll_loss/correct_ratio_trivia", correct_ratio_trivia, global_step)
+
+        #nq_dev_nll_loss, nq_correct_ratio = evaluate_dev(args, model, passage_cache)
+        #dev_nll_loss_trivia, correct_ratio_trivia = evaluate_dev(args, model, passage_cache, "-trivia")
+        #if is_first_worker():
+        #     tb_writer.add_scalar("dev_nll_loss/dev_nll_loss", nq_dev_nll_loss, global_step)
+        #     tb_writer.add_scalar("dev_nll_loss/correct_ratio", nq_correct_ratio, global_step)
+        #     tb_writer.add_scalar("dev_nll_loss/dev_nll_loss_trivia", dev_nll_loss_trivia, global_step)
+        #     tb_writer.add_scalar("dev_nll_loss/correct_ratio_trivia", correct_ratio_trivia, global_step)
 
     while global_step < args.max_steps:
+
+        #print('???',step,args.gradient_accumulation_steps,global_step,args.logging_steps)
 
         if step % args.gradient_accumulation_steps == 0 and global_step % args.logging_steps == 0:
 
             if args.num_epoch == 0:
                 # check if new ann training data is availabe
                 ann_no, ann_path, ndcg_json = get_latest_ann_data(args.ann_dir)
+                # print('???',ann_path)
+                # assert 1==0
+                #if ann_path is None:
+                #    ann_no, ann_path, ndcg_json = get_latest_ann_data(args.blob_ann_dir)
+                    #print('???',args.blob_ann_dir,ann_path,last_ann_no)
+                    ann_no=-1
                 if ann_path is not None and ann_no != last_ann_no:
                     logger.info("Training on new add data at %s", ann_path)
                     with open(ann_path, 'r') as f:
@@ -194,23 +203,38 @@ def train(args, model, tokenizer, query_cache, passage_cache):
 
         try:
             batch = next(train_dataloader_iter)
+            # if step==169045 or step==169046:
+            #     print('????',batch)
         except StopIteration:
             logger.info("Finished iterating current dataset, begin reiterate")
+            print('Finished iterating current dataset, begin reiterate!!!!',dist.get_rank())
             if args.num_epoch != 0:
                 iter_count += 1
                 if is_first_worker():
                     tb_writer.add_scalar("epoch", iter_count-1, global_step-1)
                     tb_writer.add_scalar("epoch", iter_count, global_step)
-            nq_dev_nll_loss, nq_correct_ratio = evaluate_dev(args, model, passage_cache)
-            dev_nll_loss_trivia, correct_ratio_trivia = evaluate_dev(args, model, passage_cache, "-trivia")
-            if is_first_worker():
-                tb_writer.add_scalar("dev_nll_loss/dev_nll_loss", nq_dev_nll_loss, global_step)
-                tb_writer.add_scalar("dev_nll_loss/correct_ratio", nq_correct_ratio, global_step)
-                tb_writer.add_scalar("dev_nll_loss/dev_nll_loss_trivia", dev_nll_loss_trivia, global_step)
-                tb_writer.add_scalar("dev_nll_loss/correct_ratio_trivia", correct_ratio_trivia, global_step)
+            # nq_dev_nll_loss, nq_correct_ratio = evaluate_dev(args, model, passage_cache)
+            # dev_nll_loss_trivia, correct_ratio_trivia = evaluate_dev(args, model, passage_cache, "-trivia")
+            # if is_first_worker():
+            #     tb_writer.add_scalar("dev_nll_loss/dev_nll_loss", nq_dev_nll_loss, global_step)
+            #     tb_writer.add_scalar("dev_nll_loss/correct_ratio", nq_correct_ratio, global_step)
+            #     tb_writer.add_scalar("dev_nll_loss/dev_nll_loss_trivia", dev_nll_loss_trivia, global_step)
+            #     tb_writer.add_scalar("dev_nll_loss/correct_ratio_trivia", correct_ratio_trivia, global_step)
             train_dataloader_iter = iter(train_dataloader)
             batch = next(train_dataloader_iter)
-            dist.barrier()
+            #dist.barrier()
+
+        # if step<169045:
+        #     step+=1
+        #     if step % args.gradient_accumulation_steps == 0:
+        #         global_step += 1
+        #         if args.logging_steps > 0 and global_step % args.logging_steps == 0:
+        #             if is_first_worker():
+        #                 print('step: ',global_step)
+
+        #     continue
+
+        #print('step???: ',step,dist.get_rank())
 
         if args.num_epoch != 0 and iter_count > args.num_epoch:
             break
@@ -390,6 +414,8 @@ def _save_checkpoint(args, model, optimizer, scheduler, step: int) -> str:
                             epoch, meta_params
                             )
     torch.save(state._asdict(), cp)
+    #cp_blob=os.path.join(args.blob_output_dir, 'checkpoint-' + str(offset))
+    #torch.save(state._asdict(), cp_blob)
     logger.info('Saved checkpoint at %s', cp)
     return cp
 
@@ -561,6 +587,7 @@ def get_arguments():
         help="use single or re-warmup",
     )
 
+
     # ----------------- End of Doc Ranking HyperParam ------------------
     parser.add_argument("--local_rank", type=int, default=-1, help="For distributed training: local_rank")
     parser.add_argument("--server_ip", type=str, default="", help="For distant debugging.")
@@ -630,16 +657,19 @@ def load_model(args):
 
     args.model_type = args.model_type.lower()
     configObj = MSMarcoConfigDict[args.model_type]
-    tokenizer = configObj.tokenizer_class.from_pretrained(
-        "bert-base-uncased",
-        do_lower_case=True,
-        cache_dir=args.cache_dir if args.cache_dir else None,
-    )
+    # tokenizer = configObj.tokenizer_class.from_pretrained(
+    #     "bert-base-uncased",
+    #     do_lower_case=True,
+    #     cache_dir=args.cache_dir if args.cache_dir else None,
+    # )
 
     if is_first_worker():
         # Create output directory if needed
         if not os.path.exists(args.output_dir):
             os.makedirs(args.output_dir)
+            
+        #if not os.path.exists(args.blob_output_dir):
+        #    os.makedirs(args.blob_output_dir)
 
     model = configObj.model_class(args)
 
@@ -647,13 +677,13 @@ def load_model(args):
         torch.distributed.barrier()  # Make sure only the first process in distributed training will download model & vocab
 
     model.to(args.device)
-    return tokenizer, model
+    return model
 
 
 def main():
     args = get_arguments()
     set_env(args)
-    tokenizer, model = load_model(args)
+    model = load_model(args)
 
     query_collection_path = os.path.join(args.data_dir, "train-query")
     query_cache = EmbeddingCache(query_collection_path)
@@ -661,7 +691,7 @@ def main():
     passage_cache = EmbeddingCache(passage_collection_path)
 
     with query_cache, passage_cache:
-        global_step = train(args, model, tokenizer, query_cache, passage_cache)
+        global_step = train(args, model, query_cache, passage_cache)
         logger.info(" global_step = %s", global_step)
     
     if args.local_rank != -1:

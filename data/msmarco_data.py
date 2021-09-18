@@ -263,7 +263,7 @@ def PassagePreprocessingFn(args, line, tokenizer):
         elif 'fairseq' in args.train_model_type:
             full_text = url + " </s> " + title + " </s> " + p_text
         else:
-            full_text = url + " "+tokenizer.sep_token_id+" " + title + " "+tokenizer.sep_token_id+" " + p_text
+            full_text = url + " "+tokenizer.sep_token+" " + title + " "+tokenizer.sep_token+" " + p_text
         # keep only first 10000 characters, should be sufficient for any
         # experiment that uses less than 500 - 1k tokens
         full_text = full_text[:args.max_doc_character]
@@ -499,6 +499,18 @@ def get_arguments():
         default=None,
         type=str,
         #required=True,
+    )
+
+    parser.add_argument(
+        "--do_lower_case", 
+        action="store_true", 
+        help="Set this flag if you are using an uncased model.",
+    )
+    parser.add_argument(
+        "--tokenizer_name",
+        default="",
+        type=str,
+        help="Pretrained tokenizer name or path if not the same as model_name",
     )
 
     args = parser.parse_args()

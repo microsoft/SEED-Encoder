@@ -12,6 +12,7 @@ setup(
         'scikit-learn',
         'pandas',
         'tensorboardX',
+        'fairseq==0.10.2',
         'tqdm',
         'tokenizers',
         'six',

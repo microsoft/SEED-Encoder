@@ -121,6 +121,7 @@ def load_model(args, checkpoint_path):
     saved_state = load_states_from_checkpoint(checkpoint_path)
     model_to_load = get_model_obj(model)
     logger.info('Loading saved model state ...')
+    print('load model param:',len(saved_state.model_dict.keys()))
     model_to_load.load_state_dict(saved_state.model_dict)
 
     model.to(args.device)
@@ -188,6 +189,7 @@ def StreamInferenceDoc(args, model, fn, prefix, f, is_query_inference = True, lo
     if args.local_rank != -1:
         dist.barrier() # directory created
 
+    #load_cache=True
     if load_cache:
         _embedding = None
         _embedding2id = None
@@ -204,7 +206,9 @@ def StreamInferenceDoc(args, model, fn, prefix, f, is_query_inference = True, lo
 def generate_new_ann(args, output_num, checkpoint_path, preloaded_data, latest_step_num):
 
     model = load_model(args, checkpoint_path)
+    #print('ok1???')
     pid2offset, offset2pid = load_mapping(args.data_dir, "pid2offset")
+    #print('ok2???')
 
     logger.info("***** inference of train query *****")
     train_query_collection_path = os.path.join(args.data_dir, "train-query")
@@ -217,11 +221,16 @@ def generate_new_ann(args, output_num, checkpoint_path, preloaded_data, latest_s
     dev_query_cache = EmbeddingCache(dev_query_collection_path)
     with dev_query_cache as emb:
         dev_query_embedding, dev_query_embedding2id = StreamInferenceDoc(args, model, GetProcessingFn(args, query=True), "dev_query_"+ str(latest_step_num)+"_", emb, is_query_inference = True)
+    #print('dev query embedding shape: ' + str(dev_query_embedding.shape))
+
+    
 
     dev_query_collection_path_trivia = os.path.join(args.data_dir, "trivia-test-query")
     dev_query_cache_trivia = EmbeddingCache(dev_query_collection_path_trivia)
     with dev_query_cache_trivia as emb:
-        dev_query_embedding_trivia, dev_query_embedding2id_trivia = StreamInferenceDoc(args, model, GetProcessingFn(args, query=True), "dev_query_"+ str(latest_step_num)+"_", emb, is_query_inference = True)
+        dev_query_embedding_trivia, dev_query_embedding2id_trivia = StreamInferenceDoc(args, model, GetProcessingFn(args, query=True), "dev_query_trivia_"+ str(latest_step_num)+"_", emb, is_query_inference = True)
+
+    #assert 1==0
 
     logger.info("***** inference of passages *****")
     passage_collection_path = os.path.join(args.data_dir, "passages")
@@ -239,6 +248,9 @@ def generate_new_ann(args, output_num, checkpoint_path, preloaded_data, latest_s
         cpu_index = faiss.IndexFlatIP(dim)
         cpu_index.add(passage_embedding)
         logger.info("***** Done ANN Index *****")
+
+        print('dev query embedding shape: ' + str(dev_query_embedding.shape))
+        print('test_answers: ',len(test_answers))
 
         # measure ANN mrr 
         _, dev_I = cpu_index.search(dev_query_embedding, 100) #I: [number of queries, topk]
@@ -274,7 +286,7 @@ def generate_new_ann(args, output_num, checkpoint_path, preloaded_data, latest_s
 
         ndcg_output_path = os.path.join(args.output_dir, "ann_ndcg_" + str(output_num))
         with open(ndcg_output_path, 'w') as f:
-            json.dump({'top20': top_k_hits[19], 'top100': top_k_hits[99], 'top20_trivia': top_k_hits_trivia[19], 
+            json.dump({'top1':top_k_hits[0],'top5':top_k_hits[4],'top20': top_k_hits[19], 'top100': top_k_hits[99], 'top20_trivia': top_k_hits_trivia[19], 
                 'top100_trivia': top_k_hits_trivia[99], 'checkpoint': checkpoint_path}, f)
 
 
@@ -314,6 +326,7 @@ def validate(passages, answers, closest_docs, query_embedding2id, passage_embedd
     tok_opts = {}
     tokenizer = SimpleTokenizer(**tok_opts)
 
+    
     logger.info('Matching answers in top docs...')
     scores = []
     for query_idx in range(closest_docs.shape[0]): 
@@ -337,6 +350,29 @@ def validate(passages, answers, closest_docs, query_embedding2id, passage_embedd
     logger.info('Validation results: top k documents hits %s', top_k_hits)
     top_k_hits = [v / len(closest_docs) for v in top_k_hits]
     logger.info('Validation results: top k documents hits accuracy %s', top_k_hits)
+
+    if is_first_worker():
+        print('top1: ',top_k_hits[0],' top5: ',top_k_hits[4],' top20: ', top_k_hits[19], ' top100: ', top_k_hits[99])
+
+    mrr=0.0
+    precision=0.0
+    for question_hits in scores:
+        best_hit=[ i for i, x in enumerate(question_hits) if x]
+        if len(best_hit)!=0:
+            mrr+=1.0/float(best_hit[0]+1)
+        for item in best_hit:
+            precision+=1.0/20
+            if item>=20:
+                break
+
+    if is_first_worker():
+        print('mrr@20: ',mrr/closest_docs.shape[0], ' p@20: ',precision/closest_docs.shape[0])
+        
+        
+
+
+
+
     return top_k_hits
     
 
@@ -550,6 +586,7 @@ def ann_data_gen(args):
             latest_step_num = 0
 
         if next_checkpoint == last_checkpoint:
+            print('sleep...')
             time.sleep(60)
         else:
             logger.info("start generate ann data number %d", output_num)

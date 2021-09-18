@@ -14,7 +14,7 @@ from .modules import (
     MultiheadAttention,
     PositionalEmbedding,
     TransformerSentenceEncoderLayer,
-    with_incremental_state,
+    #with_incremental_state,
     AdaptiveSoftmax,
     SinusoidalPositionalEmbedding,
     TransformerDecoderLayer,
@@ -25,9 +25,13 @@ from .modules import (
 from torch import Tensor
 
 from .modules import quant_noise as apply_quant_noise_
-from transformers.utils import logging
+# from transformers.utils import logging
 
-logger = logging.get_logger(__name__)
+# logger = logging.get_logger(__name__)
+
+
+import logging
+logger = logging.getLogger(__name__)
 
 EncoderOut = NamedTuple(
     "EncoderOut",
@@ -120,7 +124,7 @@ class FairseqDecoder(nn.Module):
     def prepare_for_onnx_export_(self):
         self.onnx_trace = True
 
-@with_incremental_state
+#@with_incremental_state
 class FairseqIncrementalDecoder(FairseqDecoder):
     """Base class for incremental decoders.
 

@@ -97,6 +97,8 @@ def barrier_array_merge(
     if args.local_rank == -1:
         return data_array
 
+    rank = args.rank
+    #'''
     if not load_cache:
         rank = args.rank
         if is_first_worker():
@@ -115,6 +117,7 @@ def barrier_array_merge(
         # make sure all processes wrote their data before first process
         # collects it
         dist.barrier()
+    #'''
 
     data_array = None
 
@@ -338,8 +341,10 @@ def tokenize_to_file(args, i, num_process, in_path, out_path, line_fn):
         tokenizer=torch.hub.load('pytorch/fairseq', 'roberta.base')
     else:
         tokenizer = configObj.tokenizer_class.from_pretrained(
-            args.model_name_or_path,
-            do_lower_case=True,
+            #args.model_name_or_path,
+            args.tokenizer_name if args.tokenizer_name else args.model_name_or_path,
+            do_lower_case=args.do_lower_case,
+            #do_lower_case=True,
             cache_dir=None,
         )
 

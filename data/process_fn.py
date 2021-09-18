@@ -73,7 +73,7 @@ def dual_process_fn_doc(line, i, tokenizer, args):
         elif 'fairseq' in args.train_model_type:
             text = url + " </s> " + title + " </s> " + p_text
         else:
-            text = url + " "+tokenizer.sep_token_id+" " + title + " "+tokenizer.sep_token_id+" " + p_text
+            text = url + " "+tokenizer.sep_token+" " + title + " "+tokenizer.sep_token+" " + p_text
 
         #text = cells[1].strip()
         text=text[:10000]

@@ -1,4 +1,4 @@
-from transformers.utils import logging
+#from transformers.utils import logging
 
 import torch
 import torch.nn as nn
@@ -10,10 +10,10 @@ import math
 from .modules import (
     LayerNorm,
     get_activation_fn,
+    MultiheadAttention,
+
 )
-
-
-
+from .modules import quant_noise as apply_quant_noise_
 
 
 from .transformer_sentence_encoder import TransformerSentenceEncoder,TransformerDecoder,EncoderOut
@@ -23,16 +23,11 @@ import os
 from transformers.modeling_utils import PreTrainedModel
 
 
-logger = logging.get_logger(__name__)
+#logger = logging.get_logger(__name__)
 
-# _CONFIG_FOR_DOC = "SEEDEncoderConfig"
-# _TOKENIZER_FOR_DOC = "SEEDEncoderTokenizer"
-# _CHECKPOINT_FOR_DOC = "microsoft/seed-encoder-3-layer-decoder"
+import logging
+logger = logging.getLogger(__name__)
 
-# DEBERTA_V2_PRETRAINED_MODEL_ARCHIVE_LIST = [
-#     "microsoft/seed-encoder-3-layer-decoder",
-#      "microsoft/seed-encoder-1-layer-decoder",
-# ]
 
 from model.SEED_Encoder import SEEDEncoderConfig
 
@@ -43,7 +38,7 @@ from model.SEED_Encoder import SEEDEncoderConfig
 class SEEDEncoderPretrainedModel(PreTrainedModel):
 
     config_class = SEEDEncoderConfig
-    base_model_prefix = "SEED-Encoder"  
+    base_model_prefix = "seed_encoder"  
 
     def _init_weights(self, module):
         """Initialize the weights."""
@@ -57,10 +52,13 @@ class SEEDEncoderPretrainedModel(PreTrainedModel):
             module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
             if module.padding_idx is not None:
                 module.weight.data[module.padding_idx].zero_()   
-        if isinstance(module, MultiheadAttention):
+        elif isinstance(module, MultiheadAttention):
             module.q_proj.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
             module.k_proj.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
             module.v_proj.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
+        elif isinstance(module, nn.LayerNorm):
+            module.bias.data.zero_()
+            module.weight.data.fill_(1.0)
 
 
 
@@ -113,22 +111,53 @@ class RobertaEncoder(nn.Module):
 
 
 
+
 class SEEDEncoderModel(SEEDEncoderPretrainedModel):
 
     def __init__(self, config):
         super().__init__(config)
         self.encoder=RobertaEncoder(config)
-        self.decoder=TransformerDecoder(config,self.encoder.sentence_encoder.embed_tokens,no_encoder_attn=config.no_cross_attention)
-
-        self.train_ratio=config.train_ratio
-        self.decoder_atten_window=config.decoder_atten_window 
-
+        self.init_weights()
 
 
     def forward(self, src_tokens, prev_tokens, return_all_hiddens=False, **kwargs):
     
         x_encoder, extra = self.encoder(src_tokens, return_all_hiddens, **kwargs)
 
+        return x_encoder ,extra
+
+    def get_input_embeddings(self):
+        
+        return self.encoder.sentence_encoder.embed_tokens
+
+    def set_input_embeddings(self, value):
+        
+        self.encoder.sentence_encoder.embed_tokens = value
+
+
+class SEEDEncoderForMaskedLM(SEEDEncoderPretrainedModel):
+    """docstring for ClassName"""
+    # _keys_to_ignore_on_save = [r"lm_head.decoder.weight", r"lm_head.decoder.bias"]
+    # _keys_to_ignore_on_load_missing = [r"position_ids", r"lm_head.decoder.weight", r"lm_head.decoder.bias"]
+
+
+    def __init__(self, config):
+        super().__init__(config)
+        self.seed_encoder = SEEDEncoderModel(config)
+        self.decoder=TransformerDecoder(config,self.encoder.sentence_encoder.embed_tokens,no_encoder_attn=config.no_cross_attention)
+        self.lm_head = RobertaLMHead(
+            embed_dim=config.encoder_embed_dim,
+            output_dim=config.vocab_size,
+            activation_fn=config.activation_fn,
+            weight=self.seed_encoder.encoder.sentence_encoder.embed_tokens.weight )
+        self.train_ratio=config.train_ratio
+        self.decoder_atten_window=config.decoder_atten_window 
+
+        self.init_weights()
+
+
+    def forward( src_tokens,prev_tokens, masked_tokens=None,**kwargs):
+        x_encoder,_=self.seed_encoder(src_tokens)
 
         h=x_encoder[:,0:1,:]
         h=h.transpose(0,1)
@@ -143,51 +172,41 @@ class SEEDEncoderModel(SEEDEncoderPretrainedModel):
         decoder_output=self.decoder(prev_tokens, encoder_out=h,local_attn_mask=self.decoder_atten_window)[0]
 
 
-        return x_encoder, decoder_output,extra
-
-
-class SEEDEncoderForMaskedLM(SEEDEncoderPretrainedModel):
-    """docstring for ClassName"""
-    def __init__(self, config):
-        super().__init__(config)
-        self.seed_encoder = SEEDEncoderModel(config)
-        self.lm_head = RobertaLMHead(
-            embed_dim=config.encoder_embed_dim,
-            output_dim=config.vocab_size,
-            activation_fn=config.activation_fn,
-            weight=self.seed_encoder.encoder.sentence_encoder.embed_tokens.weight )
-
-        self.init_weights()
-
-    def forward( src_tokens,prev_tokens, masked_tokens=None,**kwargs):
-        features,decoder_output,_=self.seed_encoder(src_tokens,prev_tokens)
-        features=self.lm_head(features, masked_tokens)
+        features=self.lm_head(x_encoder, masked_tokens)
         return features, decoder_output
 
+    def get_output_embeddings(self):
+        return self.lm_head.weight
 
-        
+    def set_output_embeddings(self, new_embeddings):
+        self.lm_head.weight = new_embeddings
+
+
 
 class SEEDEncoderForSequenceClassification(SEEDEncoderPretrainedModel):
     """docstring for ClassName"""
     def __init__(self, config):
         super().__init__(config)
         self.seed_encoder = SEEDEncoderModel(config)
-        self.classification_heads=RobertaClassificationHead(config,
+        self.classification_heads=RobertaClassificationHead(
             config.encoder_embed_dim,
             config.encoder_embed_dim,
-            config.num_classes,
+            config.num_labels,
             config.pooler_activation_fn,
             config.pooler_dropout,
             config.quant_noise_pq,
             config.quant_noise_pq_block_size,)
 
         self.init_weights()
+
     def forward(src_tokens,return_all_hiddens=False,**kwargs):
 
         x_encoder, extra = self.seed_encoder.encoder(src_tokens, return_all_hiddens, **kwargs)
         x = self.classification_heads(x_encoder,**kwargs)
 
         return x
+
+
 
 
 

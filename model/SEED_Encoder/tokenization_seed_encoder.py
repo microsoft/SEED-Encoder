@@ -249,6 +249,14 @@ class SEEDTokenizer(PreTrainedTokenizer):
     def save_vocabulary(self, save_directory: str, filename_prefix: Optional[str] = None) -> Tuple[str]:
         return self._tokenizer.save_pretrained(save_directory, filename_prefix=filename_prefix)
 
+    def encode(self,full_text, add_special_tokens,max_length):
+        if self.do_lower_case:
+            escaped_special_toks = [re.escape(s_tok) for s_tok in ['[CLS]','[PAD]','[UNK]','[SEP]']]
+            pattern = r"(" + r"|".join(escaped_special_toks) + r")|" + r"(.+?)"
+            full_text = re.sub(pattern, lambda m: m.groups()[0] or m.groups()[1].lower(), full_text)
+        return self._tokenizer.bert_tokenizer.encode(full_text, add_special_tokens=add_special_tokens).ids[:max_length]
+
+
 
 class FastBERTTokenizer:
     r"""
