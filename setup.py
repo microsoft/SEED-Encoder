@@ -4,7 +4,7 @@ with open('README.md') as f:
     readme = f.read()
 
 setup(
-    name='ANCE',
+    name='SEED-Encoder',
     version='0.1.0',
     description='Less is More: Pre-train a Strong Text Encoder for Dense Retrieval Using a Weak Decoder',
     url='https://github.com/microsoft/SEED-Encoder',
