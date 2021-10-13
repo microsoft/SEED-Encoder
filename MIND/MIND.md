@@ -7,9 +7,9 @@ python data_process.py
 ```
 
 
-#Training command: change data dir and files to yours
+## Training command: change data dir and files to yours
 
-# For training, to use different part for candidate news like using new category and abstract, need to set "--field cat_abs".
+## For training, to use different part for candidate news like using new category and abstract, need to set "--field cat_abs".
 
 ```
 python train_plain_bert_dot4_fp16.py --data_dir $DATA_DIR --save_dir $SAVE_DIR \
@@ -18,7 +18,7 @@ python train_plain_bert_dot4_fp16.py --data_dir $DATA_DIR --save_dir $SAVE_DIR \
 --test_feature_file news_token_features_roberta_abs_cat_dev_fast.txt --field cat_abs --gpu_size 24 --model_file $Load_file --eval_step $7
 ```
 
-#An example for test
+## An example for test
 
 
 ```
