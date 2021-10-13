@@ -57,6 +57,8 @@ def get_latest_checkpoint(args):
 
     if len(checkpoint_nums) > 0:
         return os.path.join(args.training_dir, "checkpoint-" + str(max(checkpoint_nums))), max(checkpoint_nums)
+        #return args.init_model_dir, max(checkpoint_nums)
+
     return args.init_model_dir, 0
 
 
@@ -189,7 +191,7 @@ def StreamInferenceDoc(args, model, fn, prefix, f, is_query_inference = True, lo
     if args.local_rank != -1:
         dist.barrier() # directory created
 
-    #load_cache=True
+    
     if load_cache:
         _embedding = None
         _embedding2id = None
@@ -225,10 +227,10 @@ def generate_new_ann(args, output_num, checkpoint_path, preloaded_data, latest_s
 
     
 
-    dev_query_collection_path_trivia = os.path.join(args.data_dir, "trivia-test-query")
-    dev_query_cache_trivia = EmbeddingCache(dev_query_collection_path_trivia)
-    with dev_query_cache_trivia as emb:
-        dev_query_embedding_trivia, dev_query_embedding2id_trivia = StreamInferenceDoc(args, model, GetProcessingFn(args, query=True), "dev_query_trivia_"+ str(latest_step_num)+"_", emb, is_query_inference = True)
+    #dev_query_collection_path_trivia = os.path.join(args.data_dir, "trivia-test-query")
+    #dev_query_cache_trivia = EmbeddingCache(dev_query_collection_path_trivia)
+    #with dev_query_cache_trivia as emb:
+    #    dev_query_embedding_trivia, dev_query_embedding2id_trivia = StreamInferenceDoc(args, model, GetProcessingFn(args, query=True), "dev_query_trivia_"+ str(latest_step_num)+"_", emb, is_query_inference = True)
 
     #assert 1==0
 
@@ -257,8 +259,8 @@ def generate_new_ann(args, output_num, checkpoint_path, preloaded_data, latest_s
         top_k_hits = validate(passage_text, test_answers, dev_I, dev_query_embedding2id, passage_embedding2id)
 
                 # measure ANN mrr 
-        _, dev_I = cpu_index.search(dev_query_embedding_trivia, 100) #I: [number of queries, topk]
-        top_k_hits_trivia = validate(passage_text, test_answers_trivia, dev_I, dev_query_embedding2id_trivia, passage_embedding2id)
+        #_, dev_I = cpu_index.search(dev_query_embedding_trivia, 100) #I: [number of queries, topk]
+        #top_k_hits_trivia = validate(passage_text, test_answers_trivia, dev_I, dev_query_embedding2id_trivia, passage_embedding2id)
 
         logger.info("Start searching for query embedding with length %d", len(query_embedding))
         _, I = cpu_index.search(query_embedding, top_k) #I: [number of queries, topk]
@@ -286,8 +288,11 @@ def generate_new_ann(args, output_num, checkpoint_path, preloaded_data, latest_s
 
         ndcg_output_path = os.path.join(args.output_dir, "ann_ndcg_" + str(output_num))
         with open(ndcg_output_path, 'w') as f:
-            json.dump({'top1':top_k_hits[0],'top5':top_k_hits[4],'top20': top_k_hits[19], 'top100': top_k_hits[99], 'top20_trivia': top_k_hits_trivia[19], 
-                'top100_trivia': top_k_hits_trivia[99], 'checkpoint': checkpoint_path}, f)
+            #json.dump({'top1':top_k_hits[0],'top5':top_k_hits[4],'top20': top_k_hits[19], 'top100': top_k_hits[99], 'top20_trivia': top_k_hits_trivia[19], 
+            #    'top100_trivia': top_k_hits_trivia[99], 'checkpoint': checkpoint_path}, f)
+            json.dump({'top1':top_k_hits[0],'top5':top_k_hits[4],'top20': top_k_hits[19], 'top100': top_k_hits[99], 'checkpoint': checkpoint_path}, f)
+    
+    #dist.barrier()
 
 
 def GenerateNegativePassaageID(args, passages, answers, query_embedding2id, passage_embedding2id, closest_docs, training_query_positive_id):

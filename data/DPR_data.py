@@ -32,8 +32,8 @@ def write_qas_query(args, qas_file, out_query_file):
         out_query_file ,
     )
 
-    configObj = MSMarcoConfigDict[args.model_type]
-    if 'fast' in args.model_type:
+    configObj = MSMarcoConfigDict[args.train_model_type]
+    if 'fast' in args.train_model_type:
         tokenizer = BertWordPieceTokenizer(args.bpe_vocab_file, clean_text=False, strip_accents=False, lowercase=False)
     else:
         tokenizer = configObj.tokenizer_class.from_pretrained(
@@ -90,14 +90,14 @@ def write_query_rel(args, pid2offset, query_file, out_query_file, out_ann_file, 
 
     qid = 0
 
-    configObj = MSMarcoConfigDict[args.model_type]
+    configObj = MSMarcoConfigDict[args.train_model_type]
 
     # tokenizer = configObj.tokenizer_class.from_pretrained(
     #     args.model_name_or_path,
     #     do_lower_case=True,
     #     cache_dir=None,
     # )
-    if 'fast' in args.model_type:
+    if 'fast' in args.train_model_type:
         tokenizer = BertWordPieceTokenizer(args.bpe_vocab_file, clean_text=False, strip_accents=False, lowercase=False)
     else:
         tokenizer = configObj.tokenizer_class.from_pretrained(
@@ -246,7 +246,7 @@ def PassagePreprocessingFn(args, line, tokenizer):
     p_id = int(line_arr[0])
     text = line_arr[1]
     title = line_arr[2]
-    if 'fast' in args.model_type:
+    if 'fast' in args.train_model_type:
         #print('???')
         text=title.lower()+"[SEP][SEP]"+text.lower()
         token_ids = tokenizer.encode(
@@ -261,14 +261,14 @@ def PassagePreprocessingFn(args, line, tokenizer):
     seq_len = args.max_seq_length
     passage_len = len(token_ids)
     if len(token_ids) < seq_len:
-        if 'fast' in args.model_type:
+        if 'fast' in args.train_model_type:
             token_ids = token_ids + [1] * (seq_len - len(token_ids))
         else:
             token_ids = token_ids + [tokenizer.pad_token_id] * (seq_len - len(token_ids))
         
     if len(token_ids) > seq_len:
         token_ids = token_ids[0:seq_len]
-        if 'fast' in args.model_type:
+        if 'fast' in args.train_model_type:
             token_ids[-1] = 2
         else:
             token_ids[-1] = tokenizer.sep_token_id
@@ -282,7 +282,7 @@ def PassagePreprocessingFn(args, line, tokenizer):
 
 def QueryPreprocessingFn(args, qid, text, tokenizer):
 
-    if 'fast' in args.model_type:
+    if 'fast' in args.train_model_type:
         text=text.lower()
         token_ids = tokenizer.encode(
             text,
@@ -296,7 +296,7 @@ def QueryPreprocessingFn(args, qid, text, tokenizer):
     passage_len = len(token_ids)
     if len(token_ids) < seq_len:
         #token_ids = token_ids + [tokenizer.pad_token_id] * (seq_len - len(token_ids))
-        if 'fast' in args.model_type:
+        if 'fast' in args.train_model_type:
             token_ids = token_ids + [1] * (seq_len - len(token_ids))
         else:
             token_ids = token_ids + [tokenizer.pad_token_id] * (seq_len - len(token_ids))
@@ -304,7 +304,7 @@ def QueryPreprocessingFn(args, qid, text, tokenizer):
     if len(token_ids) > seq_len:
         token_ids = token_ids[0:seq_len]
         #token_ids[-1] = tokenizer.sep_token_id
-        if 'fast' in args.model_type:
+        if 'fast' in args.train_model_type:
             token_ids[-1] = 2
         else:
             token_ids[-1] = tokenizer.sep_token_id
@@ -419,7 +419,7 @@ def main():
         help="The output data dir",
     )
     parser.add_argument(
-        "--model_type",
+        "--train_model_type",
         default="dpr",
         type=str,
         help="Model type selected in the list: " + ", ".join(MSMarcoConfigDict.keys()),

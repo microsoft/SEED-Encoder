@@ -7,7 +7,7 @@ out_data_dir="../../data/raw_data/QA_NQ_data/" # change this for different data_
 
 tokenization_cmd="\
 python ../data/DPR_data.py --wiki_dir $wiki_dir --question_dir $question_dir --data_type $data_type --answer_dir $ans_dir \
---out_data_dir $out_data_dir --bpe_vocab_file ../../data/model_temp/vocab.txt --model_type dpr_fast\
+--out_data_dir $out_data_dir --bpe_vocab_file ../../data/model_temp/vocab.txt --train_model_type dpr_fast\
 "
 
 echo $tokenization_cmd
@@ -20,7 +20,7 @@ gpu_no=8
 seq_length=256
 
 # ann parameters
-batch_size=32
+batch_size=1024
 ann_topk=200
 ann_negative_sample=100
 
@@ -29,11 +29,15 @@ base_data_dir="${out_data_dir}"
 #job_name="exp_21_04_22_01_infer"
 #job_name="exp_21_04_22_02"
 #job_name="exp_21_09_17_01"
-job_name="exp_21_09_17_02"
+job_name="exp_21_09_22_02"
 model_dir="${base_data_dir}${job_name}/"
 model_ann_data_dir="${model_dir}ann_data/"
 #pretrained_checkpoint_dir="../../data/model_temp/dpr_biencoder.37"
-pretrained_checkpoint_dir="$your_dir/ance-nq-checkpoint"
+#pretrained_checkpoint_dir="../../data/raw_data/QA_NQ_data/exp_21_09_22_01/ann_data/checkpoint-90000"
+#pretrained_checkpoint_dir="../../data/raw_data/QA_NQ_data/exp_21_09_22_01/ann_data/checkpoint-270000"
+#pretrained_checkpoint_dir="../../data/raw_data/QA_NQ_data/exp_21_09_22_02/checkpoint-40000"
+#pretrained_checkpoint_dir="../../data/raw_data/QA_NQ_data/exp_21_09_22_02/checkpoint-10000"
+pretrained_checkpoint_dir="/ance-nq-checkpoint.pt"
 passage_path="../../DPR/downloads/data/wikipedia_split/"
 test_qa_path="../../DPR/downloads/data/retriever/qas/"
 trivia_test_qa_path="../../DPR/downloads/data/retriever/qas/"

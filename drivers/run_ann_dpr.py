@@ -144,7 +144,7 @@ def train(args, model, query_cache, passage_cache):
                 #if ann_path is None:
                 #    ann_no, ann_path, ndcg_json = get_latest_ann_data(args.blob_ann_dir)
                     #print('???',args.blob_ann_dir,ann_path,last_ann_no)
-                    ann_no=-1
+                #ann_no=-1
                 if ann_path is not None and ann_no != last_ann_no:
                     logger.info("Training on new add data at %s", ann_path)
                     with open(ann_path, 'r') as f:
@@ -170,7 +170,7 @@ def train(args, model, query_cache, passage_cache):
                     # re-warmup
                     if not args.single_warmup:
                         scheduler = get_linear_schedule_with_warmup(
-                            optimizer, num_warmup_steps=args.warmup_steps, num_training_steps= len(ann_training_data)
+                            optimizer, num_warmup_steps=args.warmup_steps, num_training_steps= args.max_steps
                         )
 
                     if args.local_rank != -1:
