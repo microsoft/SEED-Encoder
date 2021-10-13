@@ -47,8 +47,9 @@ bash commands/data_download.sh
 
 [DPR finetuned SEED-Encoder checkpoint on NQ task](https://fastbertjp.blob.core.windows.net/release-model/dpr_biencoder.37)
 
-[ANCE finetuned SEED-Encoder checkpoint on NQ task](https://fastbertjp.blob.core.windows.net/release-model/ance-nq-checkpoint)
+[ANCE finetuned SEED-Encoder checkpoint on NQ task](https://fastbertjp.blob.core.windows.net/release-model/ance-nq-checkpoint.pt)
 
+[SEED-Encoder finetuned checkpoint on MIND](https://fastbertjp.blob.core.windows.net/release-model/seed_encoder_dot_best.pkl)
 
 
 
