@@ -8,7 +8,7 @@ This repository provides the fine-tuning stage on Marco ranking task for [SEED-E
 
 # Requirements and Installation
 
-* [PyTorch](http://pytorch.org/) version ==1.7.1
+* [PyTorch](http://pytorch.org/) version >=1.6
 * Python version >= 3.6
 * Please install Apex with CUDA and C++ extensions ([apex github](https://github.com/NVIDIA/apex)).
 
@@ -23,8 +23,15 @@ To install requirements, run the following commands:
 ```setup
 git clone https://github.com/microsoft/SEED-Encoder
 cd SEED-Encoder
+pip install fairseq==0.10.2
+pip install transformers==3.4
+
 python setup.py install
 ```
+
+## Environment
+
+You can refer to the dockerfile in docker/pytorch-1.6-itp/Dockerfile.
 
 ## Data Download
 To download all the needed data, run:
@@ -50,6 +57,9 @@ bash commands/data_download.sh
 [ANCE finetuned SEED-Encoder checkpoint on NQ task](https://fastbertjp.blob.core.windows.net/release-model/ance-nq-checkpoint.pt)
 
 [SEED-Encoder finetuned checkpoint on MIND](https://fastbertjp.blob.core.windows.net/release-model/seed_encoder_dot_best.pkl)
+
+
+
 
 
 

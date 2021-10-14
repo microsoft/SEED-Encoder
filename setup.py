@@ -17,16 +17,14 @@ setup(
    license="MIT",
    long_description=readme,
    install_requires=[
-        'transformers==2.3.0', 
         'pytrec-eval',
         'faiss-cpu',
         'wget',
         'scikit-learn',
         'pandas',
         'tensorboardX',
-        'fairseq==0.10.2',
-        'tqdm',
         'tokenizers',
+        'tqdm',
         'six',
         'requests'
     ],
